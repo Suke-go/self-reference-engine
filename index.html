@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>内省ジャーナリング</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .event-list { max-width: 600px; margin: auto; }
+    .event-card { border: 1px solid #ccc; padding: 10px; margin: 10px 0; cursor: pointer; }
+    .event-card:hover { background: #f0f0f0; }
+    .questions { display: none; padding: 10px; background: #fafafa; }
+    .question { margin: 10px 0; }
+    .options { display: flex; flex-direction: column; }
+    button { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="event-list">
+    <h1>今日のイベント一覧</h1>
+    <div id="events-container"></div>
+  </div>
+
+  <script>
+    // ページロード時にイベント取得
+    window.onload = function() {
+      google.script.run.withSuccessHandler(displayEvents).getEvents();
+    };
+
+    // イベントを表示
+    function displayEvents(events) {
+      const container = document.getElementById('events-container');
+      container.innerHTML = ''; // クリア
+      events.forEach(event => {
+        const card = document.createElement('div');
+        card.className = 'event-card';
+        card.innerHTML = `
+          <h3>${event.title}</h3>
+          <p>時間: ${new Date(event.start).toLocaleString()} - ${new Date(event.end).toLocaleString()}</p>
+          <p>説明: ${event.description}</p>
+          <div class="questions" id="questions-${event.id}"></div>
+        `;
+        card.onclick = () => toggleQuestions(event, `questions-${event.id}`);
+        container.appendChild(card);
+      });
+    }
+
+    // 質問カードをトグル表示
+    function toggleQuestions(event, questionsId) {
+      const questionsDiv = document.getElementById(questionsId);
+      if (questionsDiv.style.display === 'block') {
+        questionsDiv.style.display = 'none';
+        return;
+      }
+      questionsDiv.innerHTML = ''; // クリア
+      event.questions.forEach((q, index) => {
+        const questionElem = document.createElement('div');
+        questionElem.className = 'question';
+        questionElem.innerHTML = `<p><strong>Q${index+1}: ${q.question}</strong></p>`;
+        const optionsDiv = document.createElement('div');
+        optionsDiv.className = 'options';
+        q.options.forEach(option => {
+          const label = document.createElement('label');
+          label.innerHTML = `<input type="radio" name="q${index}-${event.id}" value="${option}"> ${option}`;
+          optionsDiv.appendChild(label);
+        });
+        questionElem.appendChild(optionsDiv);
+        questionsDiv.appendChild(questionElem);
+      });
+      const saveButton = document.createElement('button');
+      saveButton.textContent = '回答を保存';
+      saveButton.onclick = () => saveEventAnswers(event.id, questionsDiv);
+      questionsDiv.appendChild(saveButton);
+      questionsDiv.style.display = 'block';
+    }
+
+    // 回答保存
+    function saveEventAnswers(eventId, questionsDiv) {
+      const answers = [];
+      const radios = questionsDiv.querySelectorAll('input[type="radio"]:checked');
+      radios.forEach(radio => answers.push(radio.value));
+      google.script.run.withSuccessHandler(onSaveSuccess).saveAnswers(eventId, answers);
+    }
+
+    function onSaveSuccess(response) {
+      if (response.success) alert('回答が保存されました！');
+    }
+  </script>
+</body>
+</html>
